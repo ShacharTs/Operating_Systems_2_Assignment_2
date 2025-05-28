@@ -1,0 +1,14 @@
+Ex1
+
+./atom_supplier -h 127.0.0.1 -t CARBON -n 10
+./atom_supplier -h 127.0.0.1 -t OXYGEN -n 5
+./atom_supplier -h 127.0.0.1 -t HYDROGEN -n 20
+
+
+
+Ex2
+
+./molecule_supplier -h 127.0.0.1 -m WATER -n 1
+./molecule_supplier -h 127.0.0.1 -m CARBON DIOXIDE -n 1
+./molecule_supplier -h 127.0.0.1 -m ALCOHOL -n 1
+./molecule_supplier -h 127.0.0.1 -m GLUCOSE -n 1
