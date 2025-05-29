@@ -1,9 +1,9 @@
 Ex1
 cd /mnt/c/Users/shach/CLionProjects/Operating_Systems_2_Assignment_2/Ex1
 
-./atom_supplier  127.0.0.1  CARBON 100
-./atom_supplier  127.0.0.1  OXYGEN 100
-./atom_supplier  127.0.0.1  HYDROGEN 100
+./atom_supplier  localhost  CARBON 100
+./atom_supplier  localhost  OXYGEN 100
+./atom_supplier  localhost  HYDROGEN 100
 
 
 
@@ -12,8 +12,18 @@ cd /mnt/c/Users/shach/CLionProjects/Operating_Systems_2_Assignment_2/Ex1
 
 Ex2
 cd /mnt/c/Users/shach/CLionProjects/Operating_Systems_2_Assignment_2/Ex2
+./atom_warehouse
 
-./molecule_supplier -h 127.0.0.1 -m WATER -n 1
-./molecule_supplier -h 127.0.0.1 -m CARBON DIOXIDE -n 1
-./molecule_supplier -h 127.0.0.1 -m ALCOHOL -n 1
-./molecule_supplier -h 127.0.0.1 -m GLUCOSE -n 1
+./atom_supplier localhost CARBON 10
+./atom_supplier localhost OXYGEN 10
+./atom_supplier localhost HYDROGEN 10
+
+./molecule_supplier -h localhost -m WATER -n 1
+./molecule_supplier -h localhost -m "CARBON DIOXIDE" -n 1
+./molecule_supplier -h localhost -m ALCOHOL -n 1
+./molecule_supplier -h localhost -m GLUCOSE -n 1
+
+./molecule_requester localhost WATER 3
+
+
+
