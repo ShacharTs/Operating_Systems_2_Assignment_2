@@ -2,17 +2,15 @@
 #include <string>
 #include <unordered_map>
 #include <sstream>
-#include <cstring>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <sys/socket.h>
 #include <sys/select.h>
 #include <arpa/inet.h>
-
 #include <cstdint>
 #include <vector>
 
-#include "../AthomType.hpp"
+#include "ChemistryEnums.hpp"
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
@@ -22,46 +20,57 @@ using namespace std;
 enum class Action {
     ADD,
     DELIVER,
+    GEN_SORT_DRINK,
+    GEN_VODKA,
+    GEN_CHAMPAGNE,
     UNKNOWN
 };
 
-unordered_map<AtomType, string> atomToStr = {
-    {AtomType::CARBON, "CARBON"},
-    {AtomType::OXYGEN, "OXYGEN"},
-    {AtomType::HYDROGEN, "HYDROGEN"},
-    {AtomType::WATER, "WATER"},
-    {AtomType::H20, "H20"},
-    {AtomType::CARBON_DIOXIDE, "CARBON DIOXIDE"},
-    {AtomType::ALCOHOL, "ALCOHOL"},
-    {AtomType::GLUCOSE, "GLUCOSE"}
+unordered_map<AtomElement, uint64_t> atomCounts = {
+    {AtomElement::CARBON, 0},
+    {AtomElement::HYDROGEN, 0},
+    {AtomElement::OXYGEN, 0}
 };
 
-unordered_map<string, AtomType> strToAtom = {
-    {"CARBON", AtomType::CARBON},
-    {"OXYGEN", AtomType::OXYGEN},
-    {"HYDROGEN", AtomType::HYDROGEN},
-    {"WATER", AtomType::WATER},
-    {"H20", AtomType::H20},
-    {"CARBON DIOXIDE", AtomType::CARBON_DIOXIDE},
-    {"ALCOHOL", AtomType::ALCOHOL},
-    {"GLUCOSE", AtomType::GLUCOSE}
+unordered_map<MoleculeType, uint64_t> moleculeCounts = {
+    {MoleculeType::WATER, 0},
+    {MoleculeType::CARBON_DIOXIDE, 0},
+    {MoleculeType::ALCOHOL, 0},
+    {MoleculeType::GLUCOSE, 0}
 };
 
-unordered_map<AtomType, uint64_t> atom_counts = {
-    {AtomType::CARBON, 0},
-    {AtomType::OXYGEN, 0},
-    {AtomType::HYDROGEN, 0},
-    {AtomType::WATER, 0},
-    {AtomType::CARBON_DIOXIDE, 0},
-    {AtomType::ALCOHOL, 0},
-    {AtomType::GLUCOSE, 0}
+const unordered_map<string, AtomElement> StrToAtomElement = {
+    {"CARBON", AtomElement::CARBON},
+    {"OXYGEN", AtomElement::OXYGEN},
+    {"HYDROGEN", AtomElement::HYDROGEN}
 };
 
-unordered_map<AtomType, unordered_map<AtomType, uint64_t> > molecule_recipes = {
-    {AtomType::WATER, {{AtomType::HYDROGEN, 2}, {AtomType::OXYGEN, 1}}},
-    {AtomType::CARBON_DIOXIDE, {{AtomType::CARBON, 1}, {AtomType::OXYGEN, 2}}},
-    {AtomType::ALCOHOL, {{AtomType::CARBON, 2}, {AtomType::HYDROGEN, 6}, {AtomType::OXYGEN, 1}}},
-    {AtomType::GLUCOSE, {{AtomType::CARBON, 6}, {AtomType::HYDROGEN, 12}, {AtomType::OXYGEN, 6}}}
+const unordered_map<AtomElement, string> AtomElementToStr = {
+    {AtomElement::CARBON, "CARBON"},
+    {AtomElement::OXYGEN, "OXYGEN"},
+    {AtomElement::HYDROGEN, "HYDROGEN"}
+};
+
+const unordered_map<string, MoleculeType> StrToMoleculeType = {
+    {"WATER", MoleculeType::WATER},
+    {"CARBON DIOXIDE", MoleculeType::CARBON_DIOXIDE},
+    {"ALCOHOL", MoleculeType::ALCOHOL},
+    {"GLUCOSE", MoleculeType::GLUCOSE}
+};
+
+const unordered_map<MoleculeType, string> MoleculeTypeToStr = {
+    {MoleculeType::WATER, "WATER"},
+    {MoleculeType::CARBON_DIOXIDE, "CARBON DIOXIDE"},
+    {MoleculeType::ALCOHOL, "ALCOHOL"},
+    {MoleculeType::GLUCOSE, "GLUCOSE"}
+};
+
+
+unordered_map<MoleculeType, unordered_map<AtomElement, uint64_t> > moleculeRecipes = {
+    {MoleculeType::WATER, {{AtomElement::HYDROGEN, 2}, {AtomElement::OXYGEN, 1}}},
+    {MoleculeType::CARBON_DIOXIDE, {{AtomElement::CARBON, 1}, {AtomElement::OXYGEN, 2}}},
+    {MoleculeType::ALCOHOL, {{AtomElement::CARBON, 2}, {AtomElement::HYDROGEN, 6}, {AtomElement::OXYGEN, 1}}},
+    {MoleculeType::GLUCOSE, {{AtomElement::CARBON, 6}, {AtomElement::HYDROGEN, 12}, {AtomElement::OXYGEN, 6}}}
 };
 
 Action parse_action(const string &action_str) {
@@ -73,76 +82,59 @@ Action parse_action(const string &action_str) {
 bool process_command(const string &command) {
     istringstream iss(command);
     string actionStr;
-    if (!(iss >> actionStr)) {
-        cerr << "Error: Could not parse action." << endl;
-        return false;
-    }
+    if (!(iss >> actionStr)) return false;
 
-    string word;
     vector<string> parts;
-    while (iss >> word)
-        parts.push_back(word);
+    string word;
+    while (iss >> word) parts.push_back(word);
 
-    if (parts.size() < 2) {
-        cerr << "Error: Not enough arguments." << endl;
-        return false;
-    }
+    if (parts.size() < 2) return false;
 
     int64_t amount;
     try {
         amount = stoll(parts.back());
     } catch (...) {
-        cerr << "Error: Invalid amount." << endl;
         return false;
     }
     parts.pop_back();
 
-    string atomStr = parts[0];
+    string nameStr = parts[0];
     for (size_t i = 1; i < parts.size(); ++i)
-        atomStr += " " + parts[i];
+        nameStr += " " + parts[i];
 
-
-    auto it = strToAtom.find(atomStr);
-    if (it == strToAtom.end()) {
-        cerr << "Error: Unknown atom/molecule type." << endl;
-        return false;
-    }
-
-    AtomType atom = it->second;
     Action action = parse_action(actionStr);
 
     switch (action) {
-        case Action::ADD:
-            if (atom_counts[atom] > UINT64_MAX - static_cast<uint64_t>(amount)) {
-                cerr << "Error: Overflow." << endl;
-                return false;
-            }
-            atom_counts[atom] += static_cast<uint64_t>(amount);
+        case Action::ADD: {
+            auto it = StrToAtomElement.find(nameStr);
+            if (it == StrToAtomElement.end()) return false;
+            AtomElement atom = it->second;
+            if (atomCounts[atom] > UINT64_MAX - static_cast<uint64_t>(amount)) return false;
+            atomCounts[atom] += static_cast<uint64_t>(amount);
             break;
-        case Action::DELIVER:
-            if (!molecule_recipes.count(atom)) {
-                cerr << "Error: Cannot deliver unknown molecule." << endl;
-                return false;
+        }
+        case Action::DELIVER: {
+            auto it = StrToMoleculeType.find(nameStr);
+            if (it == StrToMoleculeType.end()) return false;
+            MoleculeType molecule = it->second;
+            const auto &recipe = moleculeRecipes[molecule];
+            for (const auto &[atom, qty] : recipe) {
+                if (atomCounts[atom] < qty * amount) return false;
             }
-            for (const auto &[ingredient, qty]: molecule_recipes[atom]) {
-                if (atom_counts[ingredient] < qty * amount) {
-                    cerr << "Error: Not enough ingredients." << endl;
-                    return false;
-                }
-            }
-            for (const auto &[ingredient, qty]: molecule_recipes[atom])
-                atom_counts[ingredient] -= qty * amount;
-
-            atom_counts[atom] += amount;
+            for (const auto &[atom, qty] : recipe)
+                atomCounts[atom] -= qty * amount;
+            moleculeCounts[molecule] += amount;
             break;
+        }
         default:
-            cerr << "Error: Unknown action." << endl;
             return false;
     }
 
     cout << "Inventory: ";
-    for (const auto &[type, count]: atom_counts)
-        cout << atomToStr[type] << "=" << count << " ";
+    for (const auto &[atom, count] : atomCounts)
+        cout << AtomElementToStr.at(atom) << "=" << count << " ";
+    for (const auto &[molecule, count] : moleculeCounts)
+        cout << MoleculeTypeToStr.at(molecule) << "=" << count << " ";
     cout << endl;
 
     return true;
