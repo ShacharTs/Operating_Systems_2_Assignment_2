@@ -1,10 +1,10 @@
 #include <iostream>
 #include <string>
+#include <set>
+#include <cstring>
 #include <unistd.h>
 #include <netdb.h>
 #include <arpa/inet.h>
-#include <cstring>
-#include <set>
 
 #define PORT 12345
 #define BUFFER_SIZE 1024
@@ -12,37 +12,22 @@
 using namespace std;
 
 void print_usage(const char* prog_name) {
-    cerr << "Usage: " << prog_name << " -h <hostname> -m <MOLECULE_TYPE> -n <AMOUNT>" << endl;
+    cerr << "Usage: " << prog_name << " <hostname> <MOLECULE_TYPE> <AMOUNT>" << endl;
     cerr << "Valid molecule types: WATER, CARBON DIOXIDE, ALCOHOL, GLUCOSE" << endl;
 }
 
 int main(int argc, char* argv[]) {
-    string hostname, molecule, amount = "1";
-
-    for (int i = 1; i < argc; ++i) {
-        string arg = argv[i];
-
-        if (arg == "-h" && i + 1 < argc) {
-            hostname = argv[++i];
-        } else if (arg == "-m" && i + 1 < argc) {
-            ++i;
-            molecule = argv[i];
-            // capture words until next flag or end
-            while (i + 1 < argc && argv[i + 1][0] != '-') {
-                molecule += " " + string(argv[++i]);
-            }
-        } else if (arg == "-n" && i + 1 < argc) {
-            amount = argv[++i];
-        } else {
-            print_usage(argv[0]);
-            return 1;
-        }
-    }
-
-    if (hostname.empty() || molecule.empty() || amount.empty()) {
+    if (argc < 4) {
         print_usage(argv[0]);
         return 1;
     }
+
+    string hostname = argv[1];
+    string molecule = argv[2];
+    for (int i = 3; i < argc - 1; ++i) {
+        molecule += " " + string(argv[i]);
+    }
+    string amount = argv[argc - 1];
 
     set<string> valid_molecules = {
         "WATER", "CARBON DIOXIDE", "ALCOHOL", "GLUCOSE"
@@ -90,4 +75,3 @@ int main(int argc, char* argv[]) {
     close(sock);
     return 0;
 }
-
