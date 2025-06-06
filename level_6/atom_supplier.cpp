@@ -70,24 +70,36 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // Create a TCP socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    // Resolve hostname using getaddrinfo
+    struct addrinfo hints{}, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int err = getaddrinfo(hostname.c_str(), to_string(port).c_str(), &hints, &res);
+    if (err != 0) {
+        cerr << "getaddrinfo failed: " << gai_strerror(err) << "\n";
+        return 1;
+    }
+
+    // Create a socket
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         perror("Socket creation failed");
+        freeaddrinfo(res);
         return 1;
     }
-
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port   = htons(port);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
     // Connect to the server
-    if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
         perror("Connection failed");
         close(sock);
+        freeaddrinfo(res);
         return 1;
     }
+
+    freeaddrinfo(res);  // Clean up addrinfo
+
 
     // Send the command
     ssize_t sent = send(sock, message.c_str(), message.length(), 0);

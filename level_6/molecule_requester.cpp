@@ -81,32 +81,31 @@ int main(int argc, char *argv[]) {
     // Build the "DELIVER <MOLECULE_NAME> <AMOUNT>" message
     string message = "DELIVER " + molecule + " " + amount;
 
-    // Resolve hostname to IP
-    hostent *server = gethostbyname(hostname.c_str());
-    if (!server) {
-        cerr << "Error: No such host: " << hostname << "\n";
+    // Use getaddrinfo instead of gethostbyname
+    struct addrinfo hints{}, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_DGRAM;
+
+    int err = getaddrinfo(hostname.c_str(), to_string(port).c_str(), &hints, &res);
+    if (err != 0) {
+        cerr << "getaddrinfo failed: " << gai_strerror(err) << "\n";
         return 1;
     }
 
-    // Create a UDP socket
-    int sock = socket(AF_INET, SOCK_DGRAM, 0);
+    // Create the UDP socket
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         perror("Socket creation failed");
+        freeaddrinfo(res);
         return 1;
     }
 
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port   = htons(port);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
 
     // Send the command
-    ssize_t sent = sendto(sock,
-                          message.c_str(),
-                          message.size(),
-                          0,
-                          (struct sockaddr*)&server_addr,
-                          sizeof(server_addr));
+    ssize_t sent = sendto(sock, message.c_str(), message.size(), 0,
+                      res->ai_addr, res->ai_addrlen);
+
     if (sent < 0) {
         perror("sendto failed");
         close(sock);
@@ -125,6 +124,8 @@ int main(int argc, char *argv[]) {
                                 0,
                                 (struct sockaddr*)&from_addr,
                                 &from_len);
+    freeaddrinfo(res);
+
 
     if (received > 0) {
         buffer[received] = '\0';

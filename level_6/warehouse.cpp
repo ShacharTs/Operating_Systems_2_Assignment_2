@@ -266,18 +266,29 @@ bool Warehouse::processCommand(const std::string &command) {
     std::istringstream iss(command);
     std::string action;
     iss >> action;
+
     if (action == "ADD_ATOM") {
         std::string atomName;
         uint64_t amount;
         iss >> atomName >> amount;
-        return addAtom(atomName, amount);
+        if (addAtom(atomName, amount)) {
+            saveToFile();  // <--- ADD THIS
+            return true;
+        }
+        return false;
     }
-    if (action == "MAKE") {
+
+    if (action == "DELIVER") {
         std::string moleculeName;
         uint64_t amount;
         iss >> moleculeName >> amount;
-        return makeMolecule(moleculeName, amount);
+        if (makeMolecule(moleculeName, amount)) {
+            saveToFile();  // <--- ADD THIS
+            return true;
+        }
+        return false;
     }
+
     if (action == "GEN") {
         std::string drinkName;
         iss >> drinkName;
@@ -285,9 +296,11 @@ bool Warehouse::processCommand(const std::string &command) {
         std::cout << "Can generate " << count << " of " << drinkName << "\n";
         return true;
     }
+
     // Unrecognized command
     return false;
 }
+
 
 AtomElement Warehouse::elementToEnum(const std::string &name) const {
     auto it = StrToAtomElement.find(name);
