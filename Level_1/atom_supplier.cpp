@@ -29,31 +29,33 @@ int main(int argc, char *argv[]) {
 
     string message = "ADD " + atom + " " + amount + "\n";
 
-    // Resolve hostname
-    hostent *server = gethostbyname(hostname.c_str());
-    if (!server) {
-        cerr << "Error: No such host: " << hostname << endl;
+    struct addrinfo hints{}, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;       // Use AF_UNSPEC for IPv4/6 support
+    hints.ai_socktype = SOCK_STREAM;
+
+    int err = getaddrinfo(hostname.c_str(), to_string(PORT).c_str(), &hints, &res);
+    if (err != 0) {
+        cerr << "getaddrinfo: " << gai_strerror(err) << endl;
         return 1;
     }
 
-    // Create socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         perror("Socket creation failed");
+        freeaddrinfo(res);
         return 1;
     }
 
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port = htons(PORT);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-
-    // Connect
-    if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
         perror("Connection failed");
         close(sock);
+        freeaddrinfo(res);
         return 1;
     }
+
+    freeaddrinfo(res);
+
 
     // Send command
     send(sock, message.c_str(), message.length(), 0);

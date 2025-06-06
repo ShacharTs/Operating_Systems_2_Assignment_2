@@ -10,7 +10,7 @@
 
 using namespace std;
 
-static void print_usage(const char *progname) {
+static void print_usage(const char* progname) {
     cerr << "Usage: " << progname << " -h <hostname/IP> -p <port> <ATOM> <AMOUNT>\n"
          << "  -h, --host    Hostname or IP address of the atom‐warehouse server (required)\n"
          << "  -p, --port    TCP port on which the atom‐warehouse server is listening (required)\n"
@@ -19,12 +19,12 @@ static void print_usage(const char *progname) {
     exit(1);
 }
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
     string hostname;
     int port = 0;
     int opt;
 
-    // Parse -h <hostname> and -p <port>
+    // Parse command line options
     while ((opt = getopt(argc, argv, "h:p:")) != -1) {
         switch (opt) {
             case 'h':
@@ -38,67 +38,65 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    // Both -h and -p are mandatory
     if (hostname.empty() || port == 0) {
         cerr << "Error: Both -h <hostname/IP> and -p <port> are required.\n";
         print_usage(argv[0]);
     }
 
-    // After flags, we expect exactly two more arguments: ATOM and AMOUNT
-    if (optind + 2 != argc) {
+    if (optind + 2 > argc) {
         print_usage(argv[0]);
     }
 
-    string atom   = argv[optind];
+    string atom = argv[optind];
     string amount = argv[optind + 1];
 
-    // Validate atom type
     set<string> valid_atoms = {"CARBON", "OXYGEN", "HYDROGEN"};
-    if (valid_atoms.find(atom) == valid_atoms.end()) {
+    if (!valid_atoms.count(atom)) {
         cerr << "Invalid atom type. Valid atoms: CARBON, OXYGEN, HYDROGEN\n";
         return 1;
     }
 
-    // Build the "ADD <ATOM> <AMOUNT>\n" message
     string message = "ADD " + atom + " " + amount + "\n";
 
-    // Resolve hostname to IP
-    hostent *server = gethostbyname(hostname.c_str());
-    if (!server) {
-        cerr << "Error: No such host: " << hostname << "\n";
+    // Resolve address using getaddrinfo
+    struct addrinfo hints{}, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int err = getaddrinfo(hostname.c_str(), to_string(port).c_str(), &hints, &res);
+    if (err != 0) {
+        cerr << "getaddrinfo: " << gai_strerror(err) << endl;
         return 1;
     }
 
-    // Create a TCP socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         perror("Socket creation failed");
+        freeaddrinfo(res);
         return 1;
     }
 
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port   = htons(port);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-
-    // Connect to the server
-    if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
         perror("Connection failed");
         close(sock);
+        freeaddrinfo(res);
         return 1;
     }
 
-    // Send the command
+    freeaddrinfo(res);
+
+    // Send the message
     ssize_t sent = send(sock, message.c_str(), message.length(), 0);
     if (sent < 0) {
-        perror("Send failed");
+        perror("send failed");
         close(sock);
         return 1;
     }
 
-    // Receive the response
+    // Receive response
     char buffer[BUFFER_SIZE];
-    int n = read(sock, buffer, BUFFER_SIZE - 1);
+    ssize_t n = read(sock, buffer, BUFFER_SIZE - 1);
     if (n > 0) {
         buffer[n] = '\0';
         cout << "Server response: " << buffer;

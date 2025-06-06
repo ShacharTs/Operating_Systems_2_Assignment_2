@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <netdb.h>
 
+#define PORT 12345
 #define BUFFER_SIZE 1024
 
 using namespace std;
@@ -62,31 +63,33 @@ int main(int argc, char *argv[]) {
     // Build the "ADD <ATOM> <AMOUNT>\n" message
     string message = "ADD " + atom + " " + amount + "\n";
 
-    // Resolve hostname to IP
-    hostent *server = gethostbyname(hostname.c_str());
-    if (!server) {
-        cerr << "Error: No such host: " << hostname << "\n";
+    struct addrinfo hints{}, *res;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+
+    int err = getaddrinfo(hostname.c_str(), to_string(PORT).c_str(), &hints, &res);
+    if (err != 0) {
+        cerr << "getaddrinfo: " << gai_strerror(err) << endl;
         return 1;
     }
 
-    // Create a TCP socket
-    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    int sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
     if (sock < 0) {
         perror("Socket creation failed");
+        freeaddrinfo(res);
         return 1;
     }
 
-    sockaddr_in server_addr{};
-    server_addr.sin_family = AF_INET;
-    server_addr.sin_port   = htons(port);
-    memcpy(&server_addr.sin_addr.s_addr, server->h_addr, server->h_length);
-
-    // Connect to the server
-    if (connect(sock, (sockaddr*)&server_addr, sizeof(server_addr)) < 0) {
+    if (connect(sock, res->ai_addr, res->ai_addrlen) < 0) {
         perror("Connection failed");
         close(sock);
+        freeaddrinfo(res);
         return 1;
     }
+
+    freeaddrinfo(res);
+
 
     // Send the command
     ssize_t sent = send(sock, message.c_str(), message.length(), 0);
